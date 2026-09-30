@@ -2,6 +2,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Stdio = @import("stdio.zig").Stdio;
 
+pub const OptionsError = error{InvalidOptions};
+
 const Options = struct {
     allocator: Allocator,
     mode: ?union(enum) {
@@ -53,8 +55,8 @@ fn handleOptionEvent(event: Options.OptionEvent, stderr: *std.Io.Writer) !void {
     switch (event) {
         .valid => {},
         .invalid_ => |msg| {
-            try stderr.print("Invalid options: {s}", .{msg});
-            return error.InvalidOptions;
+            try stderr.print("Invalid options: {s}\n", .{msg});
+            return OptionsError.InvalidOptions;
         },
     }
 }
