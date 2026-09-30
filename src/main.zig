@@ -1,27 +1,33 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const Io = std.Io;
+const Stdio = @import("stdio.zig").Stdio;
+const parseOptions = @import("options.zig").parseOptions;
+const printUsage = @import("options.zig").printUsage;
+const runDecode = @import("decode.zig").runDecode;
 
 const atari2600 = @import("atari2600");
 
 pub fn main(init: std.process.Init) !void {
-    const file_path = "a.out";
-    const source = try std.Io.Dir.cwd().readFileAlloc(init.io, file_path, init.arena.allocator(), .unlimited);
+    const allocator = init.arena.allocator();
+    var stdio = Stdio.init();
+    stdio.setup(init.io);
 
-    var index: usize = 2;
-    while (true) {
-        const instr, const bytes_read = atari2600.MOS6502.Instruction.decode(source[index..]) catch |err| switch (err) {
-            atari2600.MOS6502.Instruction.DecodeError.EndOfSource => break,
-            atari2600.MOS6502.Instruction.DecodeError.InvalidOpcode => {
-                std.log.err("Invalid OpCode: {x:02}", .{source[index]});
-                break;
-            },
-            atari2600.MOS6502.Instruction.DecodeError.SourceCutoff => {
-                std.log.err("Source Cutoff at index {}", .{index});
-                break;
-            },
-        };
-        index += bytes_read;
+    const options = try parseOptions(allocator, &stdio, init.minimal.args);
 
-        std.log.debug("{f}", .{instr});
+    const exit_code = if (options.mode) |mode| switch (mode) {
+        .decode => |file_path| try runDecode(init, &stdio, file_path),
+    } else try noModeSelected(stdio.stderr());
+
+    if (exit_code == 0) {
+        std.process.cleanExit(init.io);
+    } else {
+        std.process.exit(exit_code);
     }
+}
+
+fn noModeSelected(stderr: *std.Io.Writer) !u8 {
+    try printUsage(stderr);
+    try stderr.print("No mode selected.", .{});
+    return 1;
 }

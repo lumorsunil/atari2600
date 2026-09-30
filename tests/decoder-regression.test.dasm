@@ -1,0 +1,153 @@
+    processor 6502
+    org $8000
+    lda #$01
+    lda $00
+    lda $00,x
+    lda $f000
+    lda $f000,x
+    lda $f000,y
+    lda ($00,x)
+    lda ($00),y
+    ldx #$01
+    ldx $00
+    ldx $00,y
+    ldx $f000
+    ldx $f000,y
+    ldy #$01
+    ldy $00
+    ldy $00,x
+    ldy $f000
+    ldy $f000,x
+    sta $00
+    sta $00,x
+    sta $f000
+    sta $f000,x
+    sta $f000,y
+    sta ($00,x)
+    sta ($00),y
+    stx $00
+    stx $00,y
+    stx $f000
+    sty $00
+    sty $00,x
+    sty $f000
+    tax
+    tay
+    tsx
+    txa
+    txs
+    tya
+    adc #$01
+    adc $00
+    adc $00,x
+    adc $f000
+    adc $f000,x
+    adc $f000,y
+    adc ($00,x)
+    adc ($00),y
+    sbc #$01
+    sbc $00
+    sbc $00,x
+    sbc $f000
+    sbc $f000,x
+    sbc $f000,y
+    sbc ($00,x)
+    sbc ($00),y
+    and #$01
+    and $00
+    and $00,x
+    and $f000
+    and $f000,x
+    and $f000,y
+    and ($00,x)
+    and ($00),y
+    ora #$01
+    ora $00
+    ora $00,x
+    ora $f000
+    ora $f000,x
+    ora $f000,y
+    ora ($00,x)
+    ora ($00),y
+    eor #$01
+    eor $00
+    eor $00,x
+    eor $f000
+    eor $f000,x
+    eor $f000,y
+    eor ($00,x)
+    eor ($00),y
+    cmp #$01
+    cmp $00
+    cmp $00,x
+    cmp $f000
+    cmp $f000,x
+    cmp $f000,y
+    cmp ($00,x)
+    cmp ($00),y
+    cpx #$01
+    cpx $00
+    cpx $f000
+    cpy #$01
+    cpy $00
+    cpy $f000
+    bit $00
+    bit $f000
+    inc $00
+    inc $00,x
+    inc $f000
+    inc $f000,x
+    dec $00
+    dec $00,x
+    dec $f000
+    dec $f000,x
+    inx
+    iny
+    dex
+    dey
+    asl
+    asl $00
+    asl $00,x
+    asl $f000
+    asl $f000,x
+    lsr
+    lsr $00
+    lsr $00,x
+    lsr $f000
+    lsr $f000,x
+    rol
+    rol $00
+    rol $00,x
+    rol $f000
+    rol $f000,x
+    ror
+    ror $00
+    ror $00,x
+    ror $f000
+    ror $f000,x
+    jmp $f000
+    jmp ($f000)
+    jsr $8123
+    rts
+    bcc * -0
+    bcs * -2
+    beq * -4
+    bne * -6
+    bmi * -8
+    bpl * -10
+    bvc * -12
+    bvs * -14
+    clc
+    sec
+    cli
+    sei
+    clv
+    cld
+    sed
+    pha
+    php
+    pla
+    plp
+    nop
+    rti
+    brk

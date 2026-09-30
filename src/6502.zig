@@ -90,17 +90,17 @@ pub const Instruction = struct {
 
         try switch (self.mode) {
             .implicit => {},
-            .immediate => |s| writer.print(" #{x:02}", .{s.arg}),
-            .absolute => |s| writer.print(" {f}", .{s.addr}),
-            .zero => |s| writer.print(" {x:02}", .{s.addr}),
-            .indexed_absolute_x => |s| writer.print(" {f},X", .{s.addr}),
-            .indexed_absolute_y => |s| writer.print(" {f},Y", .{s.addr}),
-            .indexed_zero_x => |s| writer.print(" {x:02},X", .{s.addr}),
-            .indexed_zero_y => |s| writer.print(" {x:02},Y", .{s.addr}),
-            .indirect_absolute => |s| writer.print(" ({f})", .{s.addr}),
-            .pre_indexed_indirect_zero_x => |s| writer.print(" ({x:02},X)", .{s.addr}),
-            .post_indexed_indirect_zero_y => |s| writer.print(" ({x:02}),Y", .{s.addr}),
-            .relative => |s| writer.print(" {x:02}", .{s.addr}),
+            .immediate => |s| writer.print(" #${x:02}", .{s.arg}),
+            .absolute => |s| writer.print(" ${f}", .{s.addr}),
+            .zero => |s| writer.print(" ${x:02}", .{s.addr}),
+            .indexed_absolute_x => |s| writer.print(" ${f},x", .{s.addr}),
+            .indexed_absolute_y => |s| writer.print(" ${f},y", .{s.addr}),
+            .indexed_zero_x => |s| writer.print(" ${x:02},x", .{s.addr}),
+            .indexed_zero_y => |s| writer.print(" ${x:02},y", .{s.addr}),
+            .indirect_absolute => |s| writer.print(" (${f})", .{s.addr}),
+            .pre_indexed_indirect_zero_x => |s| writer.print(" (${x:02},x)", .{s.addr}),
+            .post_indexed_indirect_zero_y => |s| writer.print(" (${x:02}),y", .{s.addr}),
+            .relative => |s| writer.print(" * {s}{}", .{ if (s.addr + 2 == 0) "-" else "", s.addr + 2 }),
         };
     }
 
@@ -188,7 +188,7 @@ pub const Instruction = struct {
 
 const Instructions = struct {
     pub const ADC = Instruction.Type{
-        .mnemonic = "ADC",
+        .mnemonic = "adc",
         .description = "add with carry",
         .available_modes = .init(.{
             .immediate = .init(0x69, 2),
@@ -202,7 +202,7 @@ const Instructions = struct {
         }),
     };
     pub const AND = Instruction.Type{
-        .mnemonic = "AND",
+        .mnemonic = "and",
         .description = "and (with accumulator)",
         .available_modes = .init(.{
             .immediate = .init(0x29, 2),
@@ -216,7 +216,7 @@ const Instructions = struct {
         }),
     };
     pub const ASL = Instruction.Type{
-        .mnemonic = "ASL",
+        .mnemonic = "asl",
         .description = "arithmetic shift left",
         .available_modes = .init(.{
             .implicit = .init(0x0A, 2),
@@ -227,28 +227,28 @@ const Instructions = struct {
         }),
     };
     pub const BCC = Instruction.Type{
-        .mnemonic = "BCC",
+        .mnemonic = "bcc",
         .description = "branch on carry clear",
         .available_modes = .init(.{
             .relative = .init(0x90, 2),
         }),
     };
     pub const BCS = Instruction.Type{
-        .mnemonic = "BCS",
+        .mnemonic = "bcs",
         .description = "branch on carry set",
         .available_modes = .init(.{
             .relative = .init(0xB0, 2),
         }),
     };
     pub const BEQ = Instruction.Type{
-        .mnemonic = "BEQ",
+        .mnemonic = "beq",
         .description = "branch on equal (zero set)",
         .available_modes = .init(.{
             .relative = .init(0xF0, 2),
         }),
     };
     pub const BIT = Instruction.Type{
-        .mnemonic = "BIT",
+        .mnemonic = "bit",
         .description = "bit test",
         .available_modes = .init(.{
             .zero = .init(0x24, 3),
@@ -256,77 +256,77 @@ const Instructions = struct {
         }),
     };
     pub const BMI = Instruction.Type{
-        .mnemonic = "BMI",
+        .mnemonic = "bmi",
         .description = "branch on minus (negative set)",
         .available_modes = .init(.{
             .relative = .init(0x30, 2),
         }),
     };
     pub const BNE = Instruction.Type{
-        .mnemonic = "BNE",
+        .mnemonic = "bne",
         .description = "branch on not equal (zero clear)",
         .available_modes = .init(.{
             .relative = .init(0xD0, 2),
         }),
     };
     pub const BPL = Instruction.Type{
-        .mnemonic = "BPL",
+        .mnemonic = "bpl",
         .description = "branch on plus (negative clear)",
         .available_modes = .init(.{
             .relative = .init(0x10, 2),
         }),
     };
     pub const BRK = Instruction.Type{
-        .mnemonic = "BRK",
+        .mnemonic = "brk",
         .description = "break / interrupt",
         .available_modes = .init(.{
             .implicit = .init(0x00, 7),
         }),
     };
     pub const BVC = Instruction.Type{
-        .mnemonic = "BVC",
+        .mnemonic = "bvc",
         .description = "branch on overflow clear",
         .available_modes = .init(.{
             .relative = .init(0x50, 2),
         }),
     };
     pub const BVS = Instruction.Type{
-        .mnemonic = "BVS",
+        .mnemonic = "bvs",
         .description = "branch on overflow set",
         .available_modes = .init(.{
             .relative = .init(0x70, 2),
         }),
     };
     pub const CLC = Instruction.Type{
-        .mnemonic = "CLC",
+        .mnemonic = "clc",
         .description = "clear carry",
         .available_modes = .init(.{
             .implicit = .init(0x18, 2),
         }),
     };
     pub const CLD = Instruction.Type{
-        .mnemonic = "CLD",
+        .mnemonic = "cld",
         .description = "clear decimal",
         .available_modes = .init(.{
             .implicit = .init(0xD8, 2),
         }),
     };
     pub const CLI = Instruction.Type{
-        .mnemonic = "CLI",
+        .mnemonic = "cli",
         .description = "clear interrupt disable",
         .available_modes = .init(.{
             .implicit = .init(0x58, 2),
         }),
     };
     pub const CLV = Instruction.Type{
-        .mnemonic = "CLV",
+        .mnemonic = "clv",
         .description = "clear overflow",
         .available_modes = .init(.{
             .implicit = .init(0xB8, 2),
         }),
     };
     pub const CMP = Instruction.Type{
-        .mnemonic = "CMP",
+        .mnemonic = "cmp",
         .description = "compare (with accumulator)",
         .available_modes = .init(.{
             .immediate = .init(0xC9, 2),
@@ -340,7 +340,7 @@ const Instructions = struct {
         }),
     };
     pub const CPX = Instruction.Type{
-        .mnemonic = "CPX",
+        .mnemonic = "cpx",
         .description = "compare with X",
         .available_modes = .init(.{
             .immediate = .init(0xE0, 2),
@@ -349,7 +349,7 @@ const Instructions = struct {
         }),
     };
     pub const CPY = Instruction.Type{
-        .mnemonic = "CPY",
+        .mnemonic = "cpy",
         .description = "compare with Y",
         .available_modes = .init(.{
             .immediate = .init(0xC0, 2),
@@ -358,7 +358,7 @@ const Instructions = struct {
         }),
     };
     pub const DEC = Instruction.Type{
-        .mnemonic = "DEC",
+        .mnemonic = "dec",
         .description = "decrement",
         .available_modes = .init(.{
             .zero = .init(0xC6, 5),
@@ -368,21 +368,21 @@ const Instructions = struct {
         }),
     };
     pub const DEX = Instruction.Type{
-        .mnemonic = "DEX",
+        .mnemonic = "dex",
         .description = "decrement X",
         .available_modes = .init(.{
             .implicit = .init(0xCA, 2),
         }),
     };
     pub const DEY = Instruction.Type{
-        .mnemonic = "DEY",
+        .mnemonic = "dey",
         .description = "decrement Y",
         .available_modes = .init(.{
             .implicit = .init(0x88, 2),
         }),
     };
     pub const EOR = Instruction.Type{
-        .mnemonic = "EOR",
+        .mnemonic = "eor",
         .description = "exclusive or (with accumulator)",
         .available_modes = .init(.{
             .immediate = .init(0x49, 2),
@@ -396,7 +396,7 @@ const Instructions = struct {
         }),
     };
     pub const INC = Instruction.Type{
-        .mnemonic = "INC",
+        .mnemonic = "inc",
         .description = "increment",
         .available_modes = .init(.{
             .zero = .init(0xE6, 5),
@@ -406,21 +406,21 @@ const Instructions = struct {
         }),
     };
     pub const INX = Instruction.Type{
-        .mnemonic = "INX",
+        .mnemonic = "inx",
         .description = "increment X",
         .available_modes = .init(.{
             .implicit = .init(0xE8, 2),
         }),
     };
     pub const INY = Instruction.Type{
-        .mnemonic = "INY",
+        .mnemonic = "iny",
         .description = "increment Y",
         .available_modes = .init(.{
             .implicit = .init(0xC8, 2),
         }),
     };
     pub const JMP = Instruction.Type{
-        .mnemonic = "JMP",
+        .mnemonic = "jmp",
         .description = "jump",
         .available_modes = .init(.{
             .absolute = .init(0x4C, 3),
@@ -428,14 +428,14 @@ const Instructions = struct {
         }),
     };
     pub const JSR = Instruction.Type{
-        .mnemonic = "JSR",
+        .mnemonic = "jsr",
         .description = "jump subroutine",
         .available_modes = .init(.{
             .absolute = .init(0x20, 6),
         }),
     };
     pub const LDA = Instruction.Type{
-        .mnemonic = "LDA",
+        .mnemonic = "lda",
         .description = "load accumulator",
         .available_modes = .init(.{
             .immediate = .init(0xA9, 2),
@@ -449,7 +449,7 @@ const Instructions = struct {
         }),
     };
     pub const LDX = Instruction.Type{
-        .mnemonic = "LDX",
+        .mnemonic = "ldx",
         .description = "load X",
         .available_modes = .init(.{
             .immediate = .init(0xA2, 2),
@@ -460,7 +460,7 @@ const Instructions = struct {
         }),
     };
     pub const LDY = Instruction.Type{
-        .mnemonic = "LDY",
+        .mnemonic = "ldy",
         .description = "load Y",
         .available_modes = .init(.{
             .immediate = .init(0xA0, 2),
@@ -471,7 +471,7 @@ const Instructions = struct {
         }),
     };
     pub const LSR = Instruction.Type{
-        .mnemonic = "LSR",
+        .mnemonic = "lsr",
         .description = "logical shift right",
         .available_modes = .init(.{
             .implicit = .init(0x4A, 2),
@@ -482,14 +482,14 @@ const Instructions = struct {
         }),
     };
     pub const NOP = Instruction.Type{
-        .mnemonic = "NOP",
+        .mnemonic = "nop",
         .description = "no operation",
         .available_modes = .init(.{
             .implicit = .init(0xEA, 2),
         }),
     };
     pub const ORA = Instruction.Type{
-        .mnemonic = "ORA",
+        .mnemonic = "ora",
         .description = "or with accumulator",
         .available_modes = .init(.{
             .immediate = .init(0x09, 2),
@@ -503,35 +503,35 @@ const Instructions = struct {
         }),
     };
     pub const PHA = Instruction.Type{
-        .mnemonic = "PHA",
+        .mnemonic = "pha",
         .description = "push accumulator",
         .available_modes = .init(.{
             .implicit = .init(0x48, 3),
         }),
     };
     pub const PHP = Instruction.Type{
-        .mnemonic = "PHP",
+        .mnemonic = "php",
         .description = "push processor status (SR)",
         .available_modes = .init(.{
             .implicit = .init(0x08, 3),
         }),
     };
     pub const PLA = Instruction.Type{
-        .mnemonic = "PLA",
+        .mnemonic = "pla",
         .description = "pull accumulator",
         .available_modes = .init(.{
             .implicit = .init(0x68, 4),
         }),
     };
     pub const PLP = Instruction.Type{
-        .mnemonic = "PLP",
+        .mnemonic = "plp",
         .description = "pull processor status (SR)",
         .available_modes = .init(.{
             .implicit = .init(0x28, 4),
         }),
     };
     pub const ROL = Instruction.Type{
-        .mnemonic = "ROL",
+        .mnemonic = "rol",
         .description = "rotate left",
         .available_modes = .init(.{
             .implicit = .init(0x2A, 2),
@@ -542,7 +542,7 @@ const Instructions = struct {
         }),
     };
     pub const ROR = Instruction.Type{
-        .mnemonic = "ROR",
+        .mnemonic = "ror",
         .description = "rotate right",
         .available_modes = .init(.{
             .implicit = .init(0x6A, 2),
@@ -553,21 +553,21 @@ const Instructions = struct {
         }),
     };
     pub const RTI = Instruction.Type{
-        .mnemonic = "RTI",
+        .mnemonic = "rti",
         .description = "return from interrupt",
         .available_modes = .init(.{
             .implicit = .init(0x40, 6),
         }),
     };
     pub const RTS = Instruction.Type{
-        .mnemonic = "RTS",
+        .mnemonic = "rts",
         .description = "return from subroutine",
         .available_modes = .init(.{
             .implicit = .init(0x60, 6),
         }),
     };
     pub const SBC = Instruction.Type{
-        .mnemonic = "SBC",
+        .mnemonic = "sbc",
         .description = "subtract with carry",
         .available_modes = .init(.{
             .immediate = .init(0xE9, 2),
@@ -581,28 +581,28 @@ const Instructions = struct {
         }),
     };
     pub const SEC = Instruction.Type{
-        .mnemonic = "SEC",
+        .mnemonic = "sec",
         .description = "set carry",
         .available_modes = .init(.{
             .implicit = .init(0x38, 2),
         }),
     };
     pub const SED = Instruction.Type{
-        .mnemonic = "SED",
+        .mnemonic = "sed",
         .description = "set decimal",
         .available_modes = .init(.{
             .implicit = .init(0xF8, 2),
         }),
     };
     pub const SEI = Instruction.Type{
-        .mnemonic = "SEI",
+        .mnemonic = "sei",
         .description = "set interrupt disable",
         .available_modes = .init(.{
             .implicit = .init(0x78, 2),
         }),
     };
     pub const STA = Instruction.Type{
-        .mnemonic = "STA",
+        .mnemonic = "sta",
         .description = "store accumulator",
         .available_modes = .init(.{
             .zero = .init(0x85, 3),
@@ -615,7 +615,7 @@ const Instructions = struct {
         }),
     };
     pub const STX = Instruction.Type{
-        .mnemonic = "STX",
+        .mnemonic = "stx",
         .description = "store X",
         .available_modes = .init(.{
             .zero = .init(0x86, 3),
@@ -624,7 +624,7 @@ const Instructions = struct {
         }),
     };
     pub const STY = Instruction.Type{
-        .mnemonic = "STY",
+        .mnemonic = "sty",
         .description = "store Y",
         .available_modes = .init(.{
             .zero = .init(0x84, 3),
@@ -633,42 +633,42 @@ const Instructions = struct {
         }),
     };
     pub const TAX = Instruction.Type{
-        .mnemonic = "TAX",
+        .mnemonic = "tax",
         .description = "transfer accumulator to X",
         .available_modes = .init(.{
             .implicit = .init(0xAA, 2),
         }),
     };
     pub const TAY = Instruction.Type{
-        .mnemonic = "TAY",
+        .mnemonic = "tay",
         .description = "transfer accumulator to Y",
         .available_modes = .init(.{
             .implicit = .init(0xA8, 2),
         }),
     };
     pub const TSX = Instruction.Type{
-        .mnemonic = "TSX",
+        .mnemonic = "tsx",
         .description = "transfer stack pointer to X",
         .available_modes = .init(.{
             .implicit = .init(0xBA, 2),
         }),
     };
     pub const TXA = Instruction.Type{
-        .mnemonic = "TXA",
+        .mnemonic = "txa",
         .description = "transfer X to accumulator",
         .available_modes = .init(.{
             .implicit = .init(0x8A, 2),
         }),
     };
     pub const TXS = Instruction.Type{
-        .mnemonic = "TXS",
+        .mnemonic = "txs",
         .description = "transfer X to stack pointer",
         .available_modes = .init(.{
             .implicit = .init(0x9A, 2),
         }),
     };
     pub const TYA = Instruction.Type{
-        .mnemonic = "TYA",
+        .mnemonic = "tya",
         .description = "transfer Y to accumulator",
         .available_modes = .init(.{
             .implicit = .init(0x98, 2),
