@@ -25,13 +25,20 @@ pub const MOS6502 = struct {
 
         pub const zero = @This(){};
     };
+};
 
-    pub const Addr = packed struct(u16) {
-        lo: u8 = 0,
-        hi: u8 = 0,
+pub const Addr = packed struct(u16) {
+    lo: u8 = 0,
+    hi: u8 = 0,
 
-        pub const zero = @This(){};
-    };
+    pub const zero = @This(){};
+
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
+        try writer.print("{x:02}{x:02}", .{ self.hi, self.lo });
+    }
 };
 
 // INSTRUCTION SET
@@ -45,17 +52,8 @@ pub const Instruction = struct {
 
         if (source.len == 0) return DecodeError.EndOfSource;
         const opcode = source[0];
-
-        const instr_type: *const Instruction.Type, const mode: AddressingModeTag = find_instr_type: inline for (comptime std.meta.declarations(Instructions)) |decl| {
-            const instr_type: *const Instruction.Type = comptime &@field(Instructions, decl.name);
-            var available_modes = instr_type.available_modes;
-            var it = available_modes.iterator();
-            while (it.next()) |entry| {
-                if (entry.value.opcode == opcode) {
-                    break :find_instr_type .{ instr_type, entry.key };
-                }
-            }
-        } else return DecodeError.InvalidOpcode;
+        const instr_type = opcode_type_table[opcode] orelse return DecodeError.InvalidOpcode;
+        const mode = opcode_mode_table[opcode] orelse return DecodeError.InvalidOpcode;
 
         switch (mode) {
             inline else => |t| {
@@ -93,13 +91,13 @@ pub const Instruction = struct {
         try switch (self.mode) {
             .implicit => {},
             .immediate => |s| writer.print(" #{x:02}", .{s.arg}),
-            .absolute => |s| writer.print(" {x:04}", .{s.addr}),
+            .absolute => |s| writer.print(" {f}", .{s.addr}),
             .zero => |s| writer.print(" {x:02}", .{s.addr}),
-            .indexed_absolute_x => |s| writer.print(" {x:04},X", .{s.addr}),
-            .indexed_absolute_y => |s| writer.print(" {x:04},Y", .{s.addr}),
+            .indexed_absolute_x => |s| writer.print(" {f},X", .{s.addr}),
+            .indexed_absolute_y => |s| writer.print(" {f},Y", .{s.addr}),
             .indexed_zero_x => |s| writer.print(" {x:02},X", .{s.addr}),
             .indexed_zero_y => |s| writer.print(" {x:02},Y", .{s.addr}),
-            .indirect_absolute => |s| writer.print(" ({x:04})", .{s.addr}),
+            .indirect_absolute => |s| writer.print(" ({f})", .{s.addr}),
             .pre_indexed_indirect_zero_x => |s| writer.print(" ({x:02},X)", .{s.addr}),
             .post_indexed_indirect_zero_y => |s| writer.print(" ({x:02}),Y", .{s.addr}),
             .relative => |s| writer.print(" {x:02}", .{s.addr}),
@@ -131,7 +129,7 @@ pub const Instruction = struct {
         },
         absolute: packed struct(u24) {
             opcode: u8,
-            addr: u16,
+            addr: Addr,
         },
         zero: packed struct(u16) {
             opcode: u8,
@@ -139,11 +137,11 @@ pub const Instruction = struct {
         },
         indexed_absolute_x: packed struct(u24) {
             opcode: u8,
-            addr: u16,
+            addr: Addr,
         },
         indexed_absolute_y: packed struct(u24) {
             opcode: u8,
-            addr: u16,
+            addr: Addr,
         },
         indexed_zero_x: packed struct(u16) {
             opcode: u8,
@@ -155,7 +153,7 @@ pub const Instruction = struct {
         },
         indirect_absolute: packed struct(u24) {
             opcode: u8,
-            addr: u16,
+            addr: Addr,
         },
         pre_indexed_indirect_zero_x: packed struct(u16) {
             opcode: u8,
@@ -676,4 +674,317 @@ const Instructions = struct {
             .implicit = .init(0x98, 2),
         }),
     };
+};
+
+const n_max_opcodes = 0x100;
+const opcode_mode_table: [n_max_opcodes]?Instruction.AddressingModeTag = brk: {
+    var ot: [n_max_opcodes]?Instruction.AddressingModeTag = .{null} ** n_max_opcodes;
+    ot[0x00] = .implicit;
+    ot[0x01] = .pre_indexed_indirect_zero_x;
+    ot[0x05] = .zero;
+    ot[0x06] = .zero;
+    ot[0x08] = .implicit;
+    ot[0x09] = .immediate;
+    ot[0x0A] = .implicit;
+    ot[0x0D] = .absolute;
+    ot[0x0E] = .absolute;
+    ot[0x10] = .relative;
+    ot[0x11] = .post_indexed_indirect_zero_y;
+    ot[0x15] = .indexed_zero_x;
+    ot[0x16] = .indexed_zero_x;
+    ot[0x18] = .implicit;
+    ot[0x19] = .indexed_absolute_y;
+    ot[0x1D] = .indexed_absolute_x;
+    ot[0x1E] = .indexed_absolute_x;
+    ot[0x20] = .absolute;
+    ot[0x21] = .pre_indexed_indirect_zero_x;
+    ot[0x24] = .zero;
+    ot[0x25] = .zero;
+    ot[0x26] = .zero;
+    ot[0x28] = .implicit;
+    ot[0x29] = .immediate;
+    ot[0x2A] = .implicit;
+    ot[0x2C] = .absolute;
+    ot[0x2D] = .absolute;
+    ot[0x2E] = .absolute;
+    ot[0x30] = .relative;
+    ot[0x31] = .post_indexed_indirect_zero_y;
+    ot[0x35] = .indexed_zero_x;
+    ot[0x36] = .indexed_zero_x;
+    ot[0x38] = .implicit;
+    ot[0x39] = .indexed_absolute_y;
+    ot[0x3D] = .indexed_absolute_x;
+    ot[0x3E] = .indexed_absolute_x;
+    ot[0x40] = .implicit;
+    ot[0x41] = .pre_indexed_indirect_zero_x;
+    ot[0x45] = .zero;
+    ot[0x46] = .zero;
+    ot[0x48] = .implicit;
+    ot[0x49] = .immediate;
+    ot[0x4A] = .implicit;
+    ot[0x4C] = .absolute;
+    ot[0x4D] = .absolute;
+    ot[0x4E] = .absolute;
+    ot[0x50] = .relative;
+    ot[0x51] = .post_indexed_indirect_zero_y;
+    ot[0x55] = .indexed_zero_x;
+    ot[0x56] = .indexed_zero_x;
+    ot[0x58] = .implicit;
+    ot[0x59] = .indexed_absolute_y;
+    ot[0x5D] = .indexed_absolute_x;
+    ot[0x5E] = .indexed_absolute_x;
+    ot[0x60] = .implicit;
+    ot[0x61] = .pre_indexed_indirect_zero_x;
+    ot[0x65] = .zero;
+    ot[0x66] = .zero;
+    ot[0x68] = .implicit;
+    ot[0x69] = .immediate;
+    ot[0x6A] = .implicit;
+    ot[0x6C] = .indirect_absolute;
+    ot[0x6D] = .absolute;
+    ot[0x6E] = .absolute;
+    ot[0x70] = .relative;
+    ot[0x71] = .post_indexed_indirect_zero_y;
+    ot[0x75] = .indexed_zero_x;
+    ot[0x76] = .indexed_zero_x;
+    ot[0x78] = .implicit;
+    ot[0x79] = .indexed_absolute_y;
+    ot[0x7D] = .indexed_absolute_x;
+    ot[0x7E] = .indexed_absolute_x;
+    ot[0x81] = .pre_indexed_indirect_zero_x;
+    ot[0x84] = .zero;
+    ot[0x85] = .zero;
+    ot[0x86] = .zero;
+    ot[0x88] = .implicit;
+    ot[0x8A] = .implicit;
+    ot[0x8C] = .absolute;
+    ot[0x8D] = .absolute;
+    ot[0x8E] = .absolute;
+    ot[0x90] = .relative;
+    ot[0x91] = .post_indexed_indirect_zero_y;
+    ot[0x94] = .indexed_zero_x;
+    ot[0x95] = .indexed_zero_x;
+    ot[0x96] = .indexed_zero_y;
+    ot[0x98] = .implicit;
+    ot[0x99] = .indexed_absolute_y;
+    ot[0x9A] = .implicit;
+    ot[0x9D] = .indexed_absolute_x;
+    ot[0xA0] = .immediate;
+    ot[0xA1] = .pre_indexed_indirect_zero_x;
+    ot[0xA2] = .immediate;
+    ot[0xA4] = .zero;
+    ot[0xA5] = .zero;
+    ot[0xA6] = .zero;
+    ot[0xA8] = .implicit;
+    ot[0xA9] = .immediate;
+    ot[0xAA] = .implicit;
+    ot[0xAC] = .absolute;
+    ot[0xAD] = .absolute;
+    ot[0xAE] = .absolute;
+    ot[0xB0] = .relative;
+    ot[0xB1] = .post_indexed_indirect_zero_y;
+    ot[0xB4] = .indexed_zero_x;
+    ot[0xB5] = .indexed_zero_x;
+    ot[0xB6] = .indexed_zero_y;
+    ot[0xB8] = .implicit;
+    ot[0xB9] = .indexed_absolute_y;
+    ot[0xBA] = .implicit;
+    ot[0xBC] = .indexed_absolute_x;
+    ot[0xBD] = .indexed_absolute_x;
+    ot[0xBE] = .indexed_absolute_y;
+    ot[0xC0] = .immediate;
+    ot[0xC1] = .pre_indexed_indirect_zero_x;
+    ot[0xC4] = .zero;
+    ot[0xC5] = .zero;
+    ot[0xC6] = .zero;
+    ot[0xC8] = .implicit;
+    ot[0xC9] = .immediate;
+    ot[0xCA] = .implicit;
+    ot[0xCC] = .absolute;
+    ot[0xCD] = .absolute;
+    ot[0xCE] = .absolute;
+    ot[0xD0] = .relative;
+    ot[0xD1] = .post_indexed_indirect_zero_y;
+    ot[0xD5] = .indexed_zero_x;
+    ot[0xD6] = .indexed_zero_x;
+    ot[0xD8] = .implicit;
+    ot[0xD9] = .indexed_absolute_y;
+    ot[0xDD] = .indexed_absolute_x;
+    ot[0xDE] = .indexed_absolute_x;
+    ot[0xE0] = .immediate;
+    ot[0xE1] = .pre_indexed_indirect_zero_x;
+    ot[0xE4] = .zero;
+    ot[0xE5] = .zero;
+    ot[0xE6] = .zero;
+    ot[0xE8] = .implicit;
+    ot[0xE9] = .immediate;
+    ot[0xEA] = .implicit;
+    ot[0xEC] = .absolute;
+    ot[0xED] = .absolute;
+    ot[0xEE] = .absolute;
+    ot[0xF0] = .relative;
+    ot[0xF1] = .post_indexed_indirect_zero_y;
+    ot[0xF5] = .indexed_zero_x;
+    ot[0xF6] = .indexed_zero_x;
+    ot[0xF8] = .implicit;
+    ot[0xF9] = .indexed_absolute_y;
+    ot[0xFD] = .indexed_absolute_x;
+    ot[0xFE] = .indexed_absolute_x;
+    break :brk ot;
+};
+
+const opcode_type_table: [n_max_opcodes]?*const Instruction.Type = brk: {
+    var ot: [n_max_opcodes]?*const Instruction.Type = .{null} ** n_max_opcodes;
+    ot[0x69] = &Instructions.ADC;
+    ot[0x65] = &Instructions.ADC;
+    ot[0x75] = &Instructions.ADC;
+    ot[0x6D] = &Instructions.ADC;
+    ot[0x7D] = &Instructions.ADC;
+    ot[0x79] = &Instructions.ADC;
+    ot[0x61] = &Instructions.ADC;
+    ot[0x71] = &Instructions.ADC;
+    ot[0x29] = &Instructions.AND;
+    ot[0x25] = &Instructions.AND;
+    ot[0x35] = &Instructions.AND;
+    ot[0x2D] = &Instructions.AND;
+    ot[0x3D] = &Instructions.AND;
+    ot[0x39] = &Instructions.AND;
+    ot[0x21] = &Instructions.AND;
+    ot[0x31] = &Instructions.AND;
+    ot[0x0A] = &Instructions.ASL;
+    ot[0x06] = &Instructions.ASL;
+    ot[0x16] = &Instructions.ASL;
+    ot[0x0E] = &Instructions.ASL;
+    ot[0x1E] = &Instructions.ASL;
+    ot[0x90] = &Instructions.BCC;
+    ot[0xB0] = &Instructions.BCS;
+    ot[0xF0] = &Instructions.BEQ;
+    ot[0x24] = &Instructions.BIT;
+    ot[0x2C] = &Instructions.BIT;
+    ot[0x30] = &Instructions.BMI;
+    ot[0xD0] = &Instructions.BNE;
+    ot[0x10] = &Instructions.BPL;
+    ot[0x00] = &Instructions.BRK;
+    ot[0x50] = &Instructions.BVC;
+    ot[0x70] = &Instructions.BVS;
+    ot[0x18] = &Instructions.CLC;
+    ot[0xD8] = &Instructions.CLD;
+    ot[0x58] = &Instructions.CLI;
+    ot[0xB8] = &Instructions.CLV;
+    ot[0xC9] = &Instructions.CMP;
+    ot[0xC5] = &Instructions.CMP;
+    ot[0xD5] = &Instructions.CMP;
+    ot[0xCD] = &Instructions.CMP;
+    ot[0xDD] = &Instructions.CMP;
+    ot[0xD9] = &Instructions.CMP;
+    ot[0xC1] = &Instructions.CMP;
+    ot[0xD1] = &Instructions.CMP;
+    ot[0xE0] = &Instructions.CPX;
+    ot[0xE4] = &Instructions.CPX;
+    ot[0xEC] = &Instructions.CPX;
+    ot[0xC0] = &Instructions.CPY;
+    ot[0xC4] = &Instructions.CPY;
+    ot[0xCC] = &Instructions.CPY;
+    ot[0xC6] = &Instructions.DEC;
+    ot[0xD6] = &Instructions.DEC;
+    ot[0xCE] = &Instructions.DEC;
+    ot[0xDE] = &Instructions.DEC;
+    ot[0xCA] = &Instructions.DEX;
+    ot[0x88] = &Instructions.DEY;
+    ot[0x49] = &Instructions.EOR;
+    ot[0x45] = &Instructions.EOR;
+    ot[0x55] = &Instructions.EOR;
+    ot[0x4D] = &Instructions.EOR;
+    ot[0x5D] = &Instructions.EOR;
+    ot[0x59] = &Instructions.EOR;
+    ot[0x41] = &Instructions.EOR;
+    ot[0x51] = &Instructions.EOR;
+    ot[0xE6] = &Instructions.INC;
+    ot[0xF6] = &Instructions.INC;
+    ot[0xEE] = &Instructions.INC;
+    ot[0xFE] = &Instructions.INC;
+    ot[0xE8] = &Instructions.INX;
+    ot[0xC8] = &Instructions.INY;
+    ot[0x4C] = &Instructions.JMP;
+    ot[0x6C] = &Instructions.JMP;
+    ot[0x20] = &Instructions.JSR;
+    ot[0xA9] = &Instructions.LDA;
+    ot[0xA5] = &Instructions.LDA;
+    ot[0xB5] = &Instructions.LDA;
+    ot[0xAD] = &Instructions.LDA;
+    ot[0xBD] = &Instructions.LDA;
+    ot[0xB9] = &Instructions.LDA;
+    ot[0xA1] = &Instructions.LDA;
+    ot[0xB1] = &Instructions.LDA;
+    ot[0xA2] = &Instructions.LDX;
+    ot[0xA6] = &Instructions.LDX;
+    ot[0xB6] = &Instructions.LDX;
+    ot[0xAE] = &Instructions.LDX;
+    ot[0xBE] = &Instructions.LDX;
+    ot[0xA0] = &Instructions.LDY;
+    ot[0xA4] = &Instructions.LDY;
+    ot[0xB4] = &Instructions.LDY;
+    ot[0xAC] = &Instructions.LDY;
+    ot[0xBC] = &Instructions.LDY;
+    ot[0x4A] = &Instructions.LSR;
+    ot[0x46] = &Instructions.LSR;
+    ot[0x56] = &Instructions.LSR;
+    ot[0x4E] = &Instructions.LSR;
+    ot[0x5E] = &Instructions.LSR;
+    ot[0xEA] = &Instructions.NOP;
+    ot[0x09] = &Instructions.ORA;
+    ot[0x05] = &Instructions.ORA;
+    ot[0x15] = &Instructions.ORA;
+    ot[0x0D] = &Instructions.ORA;
+    ot[0x1D] = &Instructions.ORA;
+    ot[0x19] = &Instructions.ORA;
+    ot[0x01] = &Instructions.ORA;
+    ot[0x11] = &Instructions.ORA;
+    ot[0x48] = &Instructions.PHA;
+    ot[0x08] = &Instructions.PHP;
+    ot[0x68] = &Instructions.PLA;
+    ot[0x28] = &Instructions.PLP;
+    ot[0x2A] = &Instructions.ROL;
+    ot[0x26] = &Instructions.ROL;
+    ot[0x36] = &Instructions.ROL;
+    ot[0x2E] = &Instructions.ROL;
+    ot[0x3E] = &Instructions.ROL;
+    ot[0x6A] = &Instructions.ROR;
+    ot[0x66] = &Instructions.ROR;
+    ot[0x76] = &Instructions.ROR;
+    ot[0x6E] = &Instructions.ROR;
+    ot[0x7E] = &Instructions.ROR;
+    ot[0x40] = &Instructions.RTI;
+    ot[0x60] = &Instructions.RTS;
+    ot[0xE9] = &Instructions.SBC;
+    ot[0xE5] = &Instructions.SBC;
+    ot[0xF5] = &Instructions.SBC;
+    ot[0xED] = &Instructions.SBC;
+    ot[0xFD] = &Instructions.SBC;
+    ot[0xF9] = &Instructions.SBC;
+    ot[0xE1] = &Instructions.SBC;
+    ot[0xF1] = &Instructions.SBC;
+    ot[0x38] = &Instructions.SEC;
+    ot[0xF8] = &Instructions.SED;
+    ot[0x78] = &Instructions.SEI;
+    ot[0x85] = &Instructions.STA;
+    ot[0x95] = &Instructions.STA;
+    ot[0x8D] = &Instructions.STA;
+    ot[0x9D] = &Instructions.STA;
+    ot[0x99] = &Instructions.STA;
+    ot[0x81] = &Instructions.STA;
+    ot[0x91] = &Instructions.STA;
+    ot[0x86] = &Instructions.STX;
+    ot[0x96] = &Instructions.STX;
+    ot[0x8E] = &Instructions.STX;
+    ot[0x84] = &Instructions.STY;
+    ot[0x94] = &Instructions.STY;
+    ot[0x8C] = &Instructions.STY;
+    ot[0xAA] = &Instructions.TAX;
+    ot[0xA8] = &Instructions.TAY;
+    ot[0xBA] = &Instructions.TSX;
+    ot[0x8A] = &Instructions.TXA;
+    ot[0x9A] = &Instructions.TXS;
+    ot[0x98] = &Instructions.TYA;
+    break :brk ot;
 };
