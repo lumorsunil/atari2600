@@ -1,0 +1,242 @@
+    processor 6502
+    org $8000
+
+Start:
+    ; =========================================================================
+    ; 1. DATA MOVEMENT INSTRUCTIONS
+    ; =========================================================================
+    ; LDA (Load Accumulator) - All 8 Modes
+    lda #$01        ; Immediate
+    lda $00         ; Zero Page
+    lda $00,x       ; Zero Page, X
+    lda $F000       ; Absolute
+    lda $F000,x     ; Absolute, X
+    lda $F000,y     ; Absolute, Y
+    lda ($00,x)     ; (Indirect, X)
+    lda ($00),y     ; (Indirect), Y
+
+    ; LDX (Load X Register) - 5 Modes
+    ldx #$01        ; Immediate
+    ldx $00         ; Zero Page
+    ldx $00,y       ; Zero Page, Y
+    ldx $F000       ; Absolute
+    ldx $F000,y     ; Absolute, Y
+
+    ; LDY (Load Y Register) - 5 Modes
+    ldy #$01        ; Immediate
+    ldy $00         ; Zero Page
+    ldy $00,x       ; Zero Page, X
+    ldy $F000       ; Absolute
+    ldy $F000,x     ; Absolute, X
+
+    ; STA (Store Accumulator) - 7 Modes (No Immediate)
+    sta $00         ; Zero Page
+    sta $00,x       ; Zero Page, X
+    sta $F000       ; Absolute
+    sta $F000,x     ; Absolute, X
+    sta $F000,y     ; Absolute, Y
+    sta ($00,x)     ; (Indirect, X)
+    sta ($00),y     ; (Indirect), Y
+
+    ; STX (Store X Register) - 3 Modes
+    stx $00         ; Zero Page
+    stx $00,y       ; Zero Page, Y
+    stx $F000       ; Absolute
+
+    ; STY (Store Y Register) - 3 Modes
+    sty $00         ; Zero Page
+    sty $00,x       ; Zero Page, X
+    sty $F000       ; Absolute
+
+    ; Transfers (Implied)
+    tax             ; Transfer A to X
+    tay             ; Transfer A to Y
+    tsx             ; Transfer SP to X
+    txa             ; Transfer X to A
+    txs             ; Transfer X to SP
+    tya             ; Transfer Y to A
+
+
+    ; =========================================================================
+    ; 2. ARITHMETIC & LOGIC INSTRUCTIONS
+    ; =========================================================================
+    ; ADC (Add with Carry) - All 8 Modes
+    adc #$01        ; Immediate
+    adc $00         ; Zero Page
+    adc $00,x       ; Zero Page, X
+    adc $F000       ; Absolute
+    adc $F000,x     ; Absolute, X
+    adc $F000,y     ; Absolute, Y
+    adc ($00,x)     ; (Indirect, X)
+    adc ($00),y     ; (Indirect), Y
+
+    ; SBC (Subtract with Carry) - All 8 Modes
+    sbc #$01        ; Immediate
+    sbc $00         ; Zero Page
+    sbc $00,x       ; Zero Page, X
+    sbc $F000       ; Absolute
+    sbc $F000,x     ; Absolute, X
+    sbc $F000,y     ; Absolute, Y
+    sbc ($00,x)     ; (Indirect, X)
+    sbc ($00),y     ; (Indirect), Y
+
+    ; AND (Logical AND) - All 8 Modes
+    and #$01        ; Immediate
+    and $00         ; Zero Page
+    and $00,x       ; Zero Page, X
+    and $F000       ; Absolute
+    and $F000,x     ; Absolute, X
+    and $F000,y     ; Absolute, Y
+    and ($00,x)     ; (Indirect, X)
+    and ($00),y     ; (Indirect), Y
+
+    ; ORA (Logical Inclusive OR) - All 8 Modes
+    ora #$01        ; Immediate
+    ora $00         ; Zero Page
+    ora $00,x       ; Zero Page, X
+    ora $F000       ; Absolute
+    ora $F000,x     ; Absolute, X
+    ora $F000,y     ; Absolute, Y
+    ora ($00,x)     ; (Indirect, X)
+    ora ($00),y     ; (Indirect), Y
+
+    ; EOR (Logical Exclusive OR) - All 8 Modes
+    eor #$01        ; Immediate
+    eor $00         ; Zero Page
+    eor $00,x       ; Zero Page, X
+    eor $F000       ; Absolute
+    eor $F000,x     ; Absolute, X
+    eor $F000,y     ; Absolute, Y
+    eor ($00,x)     ; (Indirect, X)
+    eor ($00),y     ; (Indirect), Y
+
+
+    ; =========================================================================
+    ; 3. COMPARES & BIT TESTS
+    ; =========================================================================
+    ; CMP (Compare Accumulator) - All 8 Modes
+    cmp #$01        ; Immediate
+    cmp $00         ; Zero Page
+    cmp $00,x       ; Zero Page, X
+    cmp $F000       ; Absolute
+    cmp $F000,x     ; Absolute, X
+    cmp $F000,y     ; Absolute, Y
+    cmp ($00,x)     ; (Indirect, X)
+    cmp ($00),y     ; (Indirect), Y
+
+    ; CPX (Compare X) - 3 Modes
+    cpx #$01        ; Immediate
+    cpx $00         ; Zero Page
+    cpx $F000       ; Absolute
+
+    ; CPY (Compare Y) - 3 Modes
+    cpy #$01        ; Immediate
+    cpy $00         ; Zero Page
+    cpy $F000       ; Absolute
+
+    ; BIT (Bit Test) - 2 Modes
+    bit $00         ; Zero Page
+    bit $F000       ; Absolute
+
+
+    ; =========================================================================
+    ; 4. INCREMENTS & DECREMENTS
+    ; =========================================================================
+    ; INC (Increment Memory) - 4 Modes
+    inc $00         ; Zero Page
+    inc $00,x       ; Zero Page, X
+    inc $F000       ; Absolute
+    inc $F000,x     ; Absolute, X
+
+    ; DEC (Decrement Memory) - 4 Modes
+    dec $00         ; Zero Page
+    dec $00,x       ; Zero Page, X
+    dec $F000       ; Absolute
+    dec $F000,x     ; Absolute, X
+
+    ; Register Inc/Dec (Implied)
+    inx             ; Increment X
+    iny             ; Increment Y
+    dex             ; Decrement X
+    dey             ; Decrement Y
+
+
+    ; =========================================================================
+    ; 5. SHIFTS & ROTATIONS
+    ; =========================================================================
+    ; ASL (Arithmetic Shift Left) - 5 Modes
+    asl             ; Accumulator
+    asl $00         ; Zero Page
+    asl $00,x       ; Zero Page, X
+    asl $F000       ; Absolute
+    asl $F000,x     ; Absolute, X
+
+    ; LSR (Logical Shift Right) - 5 Modes
+    lsr             ; Accumulator
+    lsr $00         ; Zero Page
+    lsr $00,x       ; Zero Page, X
+    lsr $F000       ; Absolute
+    lsr $F000,x     ; Absolute, X
+
+    ; ROL (Rotate Left) - 5 Modes
+    rol             ; Accumulator
+    rol $00         ; Zero Page
+    rol $00,x       ; Zero Page, X
+    rol $F000       ; Absolute
+    rol $F000,x     ; Absolute, X
+
+    ; ROR (Rotate Right) - 5 Modes
+    ror             ; Accumulator
+    ror $00         ; Zero Page
+    ror $00,x       ; Zero Page, X
+    ror $F000       ; Absolute
+    ror $F000,x     ; Absolute, X
+
+
+    ; =========================================================================
+    ; 6. CONTROL FLOW (JUMPS, SUBROUTINES, BRANCHES)
+    ; =========================================================================
+    ; JMP (Jump) - 2 Modes
+    jmp $F000       ; Absolute
+    jmp ($F000)     ; Indirect
+
+    ; JSR / RTS
+    jsr Subroutine  ; Absolute JSR
+    rts             ; Implied RTS
+
+Subroutine:
+    ; Branches - Relative Addressing Mode ($FE step back loop to force a safe branch)
+    bcc Subroutine  ; Branch if Carry Clear
+    bcs Subroutine  ; Branch if Carry Set
+    beq Subroutine  ; Branch if Equal
+    bne Subroutine  ; Branch if Not Equal
+    bmi Subroutine  ; Branch if Minus
+    bpl Subroutine  ; Branch if Plus
+    bvc Subroutine  ; Branch if Overflow Clear
+    bvs Subroutine  ; Branch if Overflow Set
+    rts
+
+
+    ; =========================================================================
+    ; 7. FLAGS, STACK & SYSTEM
+    ; =========================================================================
+    ; Processor Status Flags (Implied)
+    clc             ; Clear Carry
+    sec             ; Set Carry
+    cli             ; Clear Interrupt
+    sei             ; Set Interrupt
+    clv             ; Clear Overflow
+    cld             ; Clear Decimal
+    sed             ; Set Decimal
+
+    ; Stack Operations (Implied)
+    pha             ; Push Accumulator
+    php             ; Push Flags
+    pla             ; Pull Accumulator
+    plp             ; Pull Flags
+
+    ; System (Implied)
+    nop             ; No Operation
+    rti             ; Return from Interrupt
+    brk             ; Break / Force Interrupt
+
