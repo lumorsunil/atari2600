@@ -7,8 +7,15 @@ pub const OptionsError = error{InvalidOptions};
 const Options = struct {
     allocator: Allocator,
     mode: ?union(enum) {
+        test_cpu,
         decode: [:0]const u8,
     } = null,
+
+    pub fn setTestCPU(self: *@This()) !OptionEvent {
+        if (self.mode) |mode| return try .invalidFmt(self.allocator, "Cannot use --test-cpu with --{t}", .{mode});
+        self.mode = .test_cpu;
+        return .valid;
+    }
 
     pub fn setDecode(self: *@This(), decode: [:0]const u8) !OptionEvent {
         if (self.mode) |mode| return try .invalidFmt(self.allocator, "Cannot use --decode with --{t}", .{mode});
@@ -41,6 +48,7 @@ const Option = struct {
 
 const options_descriptions: []const Option = &.{
     .init("--decode <file>", "Decodes binary 6502 to dasm assembler code to stdout."),
+    .init("--test-cpu", "Tests cpu emulation."),
 };
 
 pub fn printUsage(stdout: *std.Io.Writer) !void {
@@ -49,6 +57,7 @@ pub fn printUsage(stdout: *std.Io.Writer) !void {
     for (options_descriptions) |option| {
         try stdout.print("{s}\t{s}\n", .{ option.command, option.description });
     }
+    try stdout.writeByte('\n');
 }
 
 fn handleOptionEvent(event: Options.OptionEvent, stderr: *std.Io.Writer) !void {
@@ -70,6 +79,8 @@ fn parseOption(
     if (std.mem.eql(u8, arg, "--decode")) {
         const decode = it.next() orelse return .invalid("--decode option requires a file path argument");
         return options.setDecode(decode);
+    } else if (std.mem.eql(u8, arg, "--test-cpu")) {
+        return options.setTestCPU();
     }
 
     return try .invalidFmt(allocator, "Unknown option \"{s}\"", .{arg});

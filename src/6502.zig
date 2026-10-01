@@ -1,19 +1,241 @@
 const std = @import("std");
+const ifc = @import("interface.zig");
+const Byte = ifc.Byte;
+const Word = ifc.Word;
+const ReadWrite = ifc.ReadWrite;
 
+/// 8-Bit Microprocessor
 pub const MOS6502 = struct {
-    a: u8 = 0,
-    x: u8 = 0,
-    y: u8 = 0,
-    pc: Addr = .zero,
-    sp: u8 = 0,
+    clock_input: u1 = 0,
+    registers: Registers = .zero,
     flags: Flags = .zero,
-    cycle: usize = 0,
+    data_bus: Byte = .zero,
+    instruction_register: Byte = .fromInt(Instructions.NOP.available_modes.get(.implicit).?.opcode),
+    data_bus_buffer: Byte = .zero,
+    address_bus: Word = .zero,
+    read_write: ReadWrite = .read,
+    mode: enum { op_code, executing } = .op_code,
+    instr_cycle_count: u4 = 0,
 
     pub fn init() @This() {
         return .{};
     }
 
-    pub const Flags = packed struct(u8) {
+    pub fn update(self: *@This()) Error!void {
+        if (self.clock_input == 1) return;
+
+        defer {
+            self.registers.pc = .fromInt(self.registers.pc.toInt() +% 1);
+        }
+
+        switch (self.read_write) {
+            .read => {
+                self.data_bus_buffer = self.data_bus;
+            },
+            .write => {},
+        }
+
+        switch (self.instr_cycle_count) {
+            0 => {
+                _ = try self.executeWithAddressingMode();
+                self.address_bus = self.registers.pc;
+                self.read_write = .read;
+                self.mode = .executing;
+                self.instr_cycle_count +%= 1;
+            },
+            else => {
+                if (self.instr_cycle_count == 1) {
+                    self.instruction_register = self.data_bus_buffer;
+                }
+                switch (try self.executeWithAddressingMode()) {
+                    .cont => self.instr_cycle_count +%= 1,
+                    .next_instruction => self.instr_cycle_count = 0,
+                }
+            },
+        }
+    }
+
+    const ExecuteEvent = enum { cont, next_instruction };
+
+    fn executeWithAddressingMode(self: *@This()) Error!ExecuteEvent {
+        return switch (try self.getAddressingMode()) {
+            .implicit => switch (self.instr_cycle_count) {
+                1 => {
+                    return .next_instruction;
+                },
+                0 => {
+                    const instr_type = try self.getInstrType();
+                    const target = self.getTarget(instr_type.implicit_target);
+                    try self.executeSubInstr(instr_type.sub_instruction, target, null);
+                    return .cont;
+                },
+                else => Error.InvalidState,
+            },
+            .immediate => switch (self.instr_cycle_count) {
+                1 => {
+                    self.read_write = .read;
+                    return .next_instruction;
+                },
+                0 => {
+                    const instr_type = try self.getInstrType();
+                    const target = self.getTarget(instr_type.implicit_target);
+                    try self.executeSubInstr(instr_type.sub_instruction, target, .from(&self.data_bus_buffer));
+                    return .cont;
+                },
+                else => Error.InvalidState,
+            },
+            else => |t| {
+                std.log.err("unimplemented addressing mode: {t}", .{t});
+                return Error.UnimplementedAddressingMode;
+            },
+        };
+    }
+
+    fn aluShiftLeft(self: *@This(), target: *Byte) void {
+        const byte, self.flags.carry = @shlWithOverflow(target.toIntPtr().*, 1);
+        target.* = .fromInt(byte);
+        self.flags.setZero(target.*);
+        self.flags.setNegative(target.*);
+    }
+
+    fn aluShiftRight(self: *@This(), target: *Byte) void {
+        self.flags.carry = @truncate(target.toInt() & 1);
+        target.* = .fromInt(target.toInt() >> 1);
+        self.flags.setZero(target.*);
+        self.flags.negative = 0;
+    }
+
+    fn aluInc(self: *@This(), target: *Byte) void {
+        target.* = .fromInt(target.toInt() +% 1);
+        self.flags.setZero(target.*);
+        self.flags.setNegative(target.*);
+    }
+
+    fn aluDec(self: *@This(), target: *Byte) void {
+        target.* = .fromInt(target.toInt() -% 1);
+        self.flags.setZero(target.*);
+        self.flags.setNegative(target.*);
+    }
+
+    fn aluRotateLeft(self: *@This(), target: *Byte) void {
+        const byte, self.flags.carry = @shlWithOverflow(target.toIntPtr().*, 1);
+        target.* = .fromInt(byte | self.flags.carry);
+        self.flags.setZero(target.*);
+        self.flags.setNegative(target.*);
+    }
+
+    fn aluRotateRight(self: *@This(), target: *Byte) void {
+        self.flags.carry = @truncate(target.toInt() & 1);
+        target.* = .fromInt(std.math.rotr(u8, target.toInt(), 1));
+        self.flags.setZero(target.*);
+        self.flags.setNegative(target.*);
+    }
+
+    // TODO: investigate if this even works
+    fn aluAddWithCarry(self: *@This(), dest: *Byte, rhs: *Byte) void {
+        var result, const carry = @addWithOverflow(dest.toInt(), rhs.toInt());
+
+        if (self.flags.carry > 0) {
+            result, self.flags.carry = @addWithOverflow(result, self.flags.carry);
+        }
+
+        self.flags.carry |= carry;
+
+        dest.* = .fromInt(result);
+        self.flags.setZero(dest.*);
+        self.flags.setNegative(dest.*);
+    }
+
+    fn getInstrType(self: @This()) Error!*const Instruction.Type {
+        return opcode_type_table[self.instruction_register.toInt()] orelse return Error.InvalidOpCode;
+    }
+
+    fn getAddressingMode(self: @This()) Error!Instruction.AddressingModeTag {
+        return opcode_mode_table[self.instruction_register.toInt()] orelse return Error.InvalidOpCode;
+    }
+
+    fn executeSubInstr(self: *@This(), sub_instr: CPUSubInstr, target: TargetPtr, arg: ?TargetPtr) Error!void {
+        return switch (sub_instr) {
+            .noop => {},
+            .shift_left => self.aluShiftLeft(target.byte),
+            .shift_right => self.aluShiftRight(target.byte),
+            .rotate_left => self.aluRotateLeft(target.byte),
+            .rotate_right => self.aluRotateRight(target.byte),
+            .read => |read| {
+                const dest = self.getTarget(read.dest).byte;
+                dest.* = target.byte.*;
+                self.flags.setZero(dest.*);
+                self.flags.setNegative(dest.*);
+            },
+            .write => |write| {
+                const dest = target.byte;
+                dest.* = self.getTarget(write.src).byte.*;
+                self.flags.setZero(dest.*);
+                self.flags.setNegative(dest.*);
+            },
+            .write_no_set_flags => |write| {
+                target.byte.* = self.getTarget(write.src).byte.*;
+            },
+            .clear_flag => target.flag.* = 0,
+            .set_flag => target.flag.* = 1,
+            .dec => self.aluDec(target.byte),
+            .inc => self.aluInc(target.byte),
+            .add_with_carry => self.aluAddWithCarry(target.byte, arg.?.byte),
+            .unimplemented => Error.UnimplementedInstruction,
+        };
+    }
+
+    const TargetPtr = union {
+        byte: *Byte,
+        flag: *u1,
+
+        pub fn from(src: anytype) @This() {
+            if (@TypeOf(src) == *Byte) {
+                return .{ .byte = src };
+            } else if (@TypeOf(src) == *u1) {
+                return .{ .flag = src };
+            }
+
+            @compileError("invalid src " ++ @typeName(@TypeOf(src)));
+        }
+    };
+
+    fn getTarget(self: *@This(), target: CPUTarget) TargetPtr {
+        return switch (target) {
+            .a => .from(&self.registers.a),
+            .x => .from(&self.registers.x),
+            .y => .from(&self.registers.y),
+            .s => .from(&self.registers.s),
+            .pcl => .from(@as(*Byte, @ptrCast(&self.registers.pc.lo))),
+            .pch => .from(@as(*Byte, @ptrCast(&self.registers.pc.hi))),
+            .data_bus_buffer => .from(&self.data_bus_buffer),
+            .z => .from(&self.flags.zero_),
+            .c => .from(&self.flags.carry),
+            .v => .from(&self.flags.overflow),
+            .n => .from(&self.flags.negative),
+            .i => .from(&self.flags.irq_disable),
+            .d => .from(&self.flags.decimal_mode),
+        };
+    }
+
+    pub const Error = error{
+        InvalidOpCode,
+        InvalidState,
+        UnimplementedInstruction,
+        UnimplementedAddressingMode,
+    };
+
+    pub const Registers = struct {
+        a: Byte = .zero,
+        x: Byte = .zero,
+        y: Byte = .zero,
+        pc: Word = .zero,
+        s: Byte = .zero,
+
+        pub const zero = @This(){};
+    };
+
+    pub const Flags = struct {
         carry: u1 = 0,
         zero_: u1 = 0,
         irq_disable: u1 = 0,
@@ -24,21 +246,33 @@ pub const MOS6502 = struct {
         negative: u1 = 0,
 
         pub const zero = @This(){};
+
+        fn setZero(self: *@This(), target: Byte) void {
+            self.zero_ = @intFromBool(target.toInt() == 0);
+        }
+
+        fn setNegative(self: *@This(), target: Byte) void {
+            self.negative = @intFromBool(std.math.signbit(@as(i8, @bitCast(target))));
+        }
     };
-};
 
-pub const Addr = packed struct(u16) {
-    lo: u8 = 0,
-    hi: u8 = 0,
-
-    pub const zero = @This(){};
-
-    pub fn format(
-        self: @This(),
-        writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
-        try writer.print("{x:02}{x:02}", .{ self.hi, self.lo });
-    }
+    const CPUTarget = enum { a, x, y, s, pcl, pch, data_bus_buffer, z, c, v, i, d, n };
+    const CPUSubInstr = union(enum) {
+        noop,
+        shift_left,
+        shift_right,
+        rotate_left,
+        rotate_right,
+        read: struct { dest: CPUTarget },
+        write: struct { src: CPUTarget },
+        write_no_set_flags: struct { src: CPUTarget },
+        clear_flag,
+        set_flag,
+        dec,
+        inc,
+        add_with_carry,
+        unimplemented,
+    };
 };
 
 // INSTRUCTION SET
@@ -129,7 +363,7 @@ pub const Instruction = struct {
         },
         absolute: packed struct(u24) {
             opcode: u8,
-            addr: Addr,
+            addr: Word,
         },
         zero: packed struct(u16) {
             opcode: u8,
@@ -137,11 +371,11 @@ pub const Instruction = struct {
         },
         indexed_absolute_x: packed struct(u24) {
             opcode: u8,
-            addr: Addr,
+            addr: Word,
         },
         indexed_absolute_y: packed struct(u24) {
             opcode: u8,
-            addr: Addr,
+            addr: Word,
         },
         indexed_zero_x: packed struct(u16) {
             opcode: u8,
@@ -153,7 +387,7 @@ pub const Instruction = struct {
         },
         indirect_absolute: packed struct(u24) {
             opcode: u8,
-            addr: Addr,
+            addr: Word,
         },
         pre_indexed_indirect_zero_x: packed struct(u16) {
             opcode: u8,
@@ -173,6 +407,8 @@ pub const Instruction = struct {
         mnemonic: *const [3:0]u8,
         description: []const u8,
         available_modes: AvailableModes,
+        sub_instruction: MOS6502.CPUSubInstr = .unimplemented,
+        implicit_target: MOS6502.CPUTarget = undefined,
 
         pub const AvailableModes = std.enums.EnumMap(AddressingModeTag, ModeOptions);
         pub const ModeOptions = struct {
@@ -183,13 +419,22 @@ pub const Instruction = struct {
                 return .{ .opcode = opcode, .base_cycles = base_cycles };
             }
         };
+
+        pub fn format(
+            self: @This(),
+            writer: *std.Io.Writer,
+        ) std.Io.Writer.Error!void {
+            try writer.print("{s}", .{self.mnemonic});
+        }
     };
 };
 
-const Instructions = struct {
+pub const Instructions = struct {
     pub const ADC = Instruction.Type{
         .mnemonic = "adc",
         .description = "add with carry",
+        .sub_instruction = .add_with_carry,
+        .implicit_target = .a,
         .available_modes = .init(.{
             .immediate = .init(0x69, 2),
             .zero = .init(0x65, 3),
@@ -218,6 +463,8 @@ const Instructions = struct {
     pub const ASL = Instruction.Type{
         .mnemonic = "asl",
         .description = "arithmetic shift left",
+        .sub_instruction = .shift_left,
+        .implicit_target = .a,
         .available_modes = .init(.{
             .implicit = .init(0x0A, 2),
             .zero = .init(0x06, 5),
@@ -300,6 +547,8 @@ const Instructions = struct {
     pub const CLC = Instruction.Type{
         .mnemonic = "clc",
         .description = "clear carry",
+        .sub_instruction = .clear_flag,
+        .implicit_target = .c,
         .available_modes = .init(.{
             .implicit = .init(0x18, 2),
         }),
@@ -307,6 +556,8 @@ const Instructions = struct {
     pub const CLD = Instruction.Type{
         .mnemonic = "cld",
         .description = "clear decimal",
+        .sub_instruction = .clear_flag,
+        .implicit_target = .d,
         .available_modes = .init(.{
             .implicit = .init(0xD8, 2),
         }),
@@ -314,6 +565,8 @@ const Instructions = struct {
     pub const CLI = Instruction.Type{
         .mnemonic = "cli",
         .description = "clear interrupt disable",
+        .sub_instruction = .clear_flag,
+        .implicit_target = .i,
         .available_modes = .init(.{
             .implicit = .init(0x58, 2),
         }),
@@ -321,6 +574,8 @@ const Instructions = struct {
     pub const CLV = Instruction.Type{
         .mnemonic = "clv",
         .description = "clear overflow",
+        .sub_instruction = .clear_flag,
+        .implicit_target = .v,
         .available_modes = .init(.{
             .implicit = .init(0xB8, 2),
         }),
@@ -360,6 +615,7 @@ const Instructions = struct {
     pub const DEC = Instruction.Type{
         .mnemonic = "dec",
         .description = "decrement",
+        .sub_instruction = .dec,
         .available_modes = .init(.{
             .zero = .init(0xC6, 5),
             .indexed_zero_x = .init(0xD6, 6),
@@ -370,6 +626,8 @@ const Instructions = struct {
     pub const DEX = Instruction.Type{
         .mnemonic = "dex",
         .description = "decrement X",
+        .sub_instruction = .dec,
+        .implicit_target = .x,
         .available_modes = .init(.{
             .implicit = .init(0xCA, 2),
         }),
@@ -377,6 +635,8 @@ const Instructions = struct {
     pub const DEY = Instruction.Type{
         .mnemonic = "dey",
         .description = "decrement Y",
+        .sub_instruction = .dec,
+        .implicit_target = .y,
         .available_modes = .init(.{
             .implicit = .init(0x88, 2),
         }),
@@ -398,6 +658,7 @@ const Instructions = struct {
     pub const INC = Instruction.Type{
         .mnemonic = "inc",
         .description = "increment",
+        .sub_instruction = .inc,
         .available_modes = .init(.{
             .zero = .init(0xE6, 5),
             .indexed_zero_x = .init(0xF6, 6),
@@ -408,6 +669,8 @@ const Instructions = struct {
     pub const INX = Instruction.Type{
         .mnemonic = "inx",
         .description = "increment X",
+        .sub_instruction = .inc,
+        .implicit_target = .x,
         .available_modes = .init(.{
             .implicit = .init(0xE8, 2),
         }),
@@ -415,6 +678,8 @@ const Instructions = struct {
     pub const INY = Instruction.Type{
         .mnemonic = "iny",
         .description = "increment Y",
+        .sub_instruction = .inc,
+        .implicit_target = .y,
         .available_modes = .init(.{
             .implicit = .init(0xC8, 2),
         }),
@@ -473,6 +738,8 @@ const Instructions = struct {
     pub const LSR = Instruction.Type{
         .mnemonic = "lsr",
         .description = "logical shift right",
+        .sub_instruction = .shift_right,
+        .implicit_target = .a,
         .available_modes = .init(.{
             .implicit = .init(0x4A, 2),
             .zero = .init(0x46, 5),
@@ -484,6 +751,7 @@ const Instructions = struct {
     pub const NOP = Instruction.Type{
         .mnemonic = "nop",
         .description = "no operation",
+        .sub_instruction = .noop,
         .available_modes = .init(.{
             .implicit = .init(0xEA, 2),
         }),
@@ -533,6 +801,8 @@ const Instructions = struct {
     pub const ROL = Instruction.Type{
         .mnemonic = "rol",
         .description = "rotate left",
+        .sub_instruction = .rotate_left,
+        .implicit_target = .a,
         .available_modes = .init(.{
             .implicit = .init(0x2A, 2),
             .zero = .init(0x26, 5),
@@ -544,6 +814,8 @@ const Instructions = struct {
     pub const ROR = Instruction.Type{
         .mnemonic = "ror",
         .description = "rotate right",
+        .sub_instruction = .rotate_right,
+        .implicit_target = .a,
         .available_modes = .init(.{
             .implicit = .init(0x6A, 2),
             .zero = .init(0x66, 5),
@@ -583,6 +855,8 @@ const Instructions = struct {
     pub const SEC = Instruction.Type{
         .mnemonic = "sec",
         .description = "set carry",
+        .sub_instruction = .set_flag,
+        .implicit_target = .c,
         .available_modes = .init(.{
             .implicit = .init(0x38, 2),
         }),
@@ -590,6 +864,8 @@ const Instructions = struct {
     pub const SED = Instruction.Type{
         .mnemonic = "sed",
         .description = "set decimal",
+        .sub_instruction = .set_flag,
+        .implicit_target = .d,
         .available_modes = .init(.{
             .implicit = .init(0xF8, 2),
         }),
@@ -597,6 +873,8 @@ const Instructions = struct {
     pub const SEI = Instruction.Type{
         .mnemonic = "sei",
         .description = "set interrupt disable",
+        .sub_instruction = .set_flag,
+        .implicit_target = .i,
         .available_modes = .init(.{
             .implicit = .init(0x78, 2),
         }),
@@ -635,6 +913,8 @@ const Instructions = struct {
     pub const TAX = Instruction.Type{
         .mnemonic = "tax",
         .description = "transfer accumulator to X",
+        .sub_instruction = .{ .write = .{ .src = .a } },
+        .implicit_target = .x,
         .available_modes = .init(.{
             .implicit = .init(0xAA, 2),
         }),
@@ -642,6 +922,8 @@ const Instructions = struct {
     pub const TAY = Instruction.Type{
         .mnemonic = "tay",
         .description = "transfer accumulator to Y",
+        .sub_instruction = .{ .write = .{ .src = .a } },
+        .implicit_target = .y,
         .available_modes = .init(.{
             .implicit = .init(0xA8, 2),
         }),
@@ -649,6 +931,8 @@ const Instructions = struct {
     pub const TSX = Instruction.Type{
         .mnemonic = "tsx",
         .description = "transfer stack pointer to X",
+        .sub_instruction = .{ .write = .{ .src = .s } },
+        .implicit_target = .x,
         .available_modes = .init(.{
             .implicit = .init(0xBA, 2),
         }),
@@ -656,6 +940,8 @@ const Instructions = struct {
     pub const TXA = Instruction.Type{
         .mnemonic = "txa",
         .description = "transfer X to accumulator",
+        .sub_instruction = .{ .write = .{ .src = .x } },
+        .implicit_target = .a,
         .available_modes = .init(.{
             .implicit = .init(0x8A, 2),
         }),
@@ -663,6 +949,8 @@ const Instructions = struct {
     pub const TXS = Instruction.Type{
         .mnemonic = "txs",
         .description = "transfer X to stack pointer",
+        .sub_instruction = .{ .write_no_set_flags = .{ .src = .x } },
+        .implicit_target = .s,
         .available_modes = .init(.{
             .implicit = .init(0x9A, 2),
         }),
@@ -670,6 +958,8 @@ const Instructions = struct {
     pub const TYA = Instruction.Type{
         .mnemonic = "tya",
         .description = "transfer Y to accumulator",
+        .sub_instruction = .{ .write = .{ .src = .y } },
+        .implicit_target = .a,
         .available_modes = .init(.{
             .implicit = .init(0x98, 2),
         }),
@@ -833,7 +1123,7 @@ const opcode_mode_table: [n_max_opcodes]?Instruction.AddressingModeTag = brk: {
     break :brk ot;
 };
 
-const opcode_type_table: [n_max_opcodes]?*const Instruction.Type = brk: {
+pub const opcode_type_table: [n_max_opcodes]?*const Instruction.Type = brk: {
     var ot: [n_max_opcodes]?*const Instruction.Type = .{null} ** n_max_opcodes;
     ot[0x69] = &Instructions.ADC;
     ot[0x65] = &Instructions.ADC;

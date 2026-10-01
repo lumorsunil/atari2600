@@ -3,6 +3,7 @@ const Stdio = @import("stdio.zig").Stdio;
 const parseOptions = @import("options.zig").parseOptions;
 const printUsage = @import("options.zig").printUsage;
 const runDecode = @import("decode.zig").runDecode;
+const runTestCPU = @import("test-cpu.zig").runTestCPU;
 
 pub fn run(init: std.process.Init, stdio: *Stdio) !u8 {
     const allocator = init.arena.allocator();
@@ -10,6 +11,7 @@ pub fn run(init: std.process.Init, stdio: *Stdio) !u8 {
 
     return if (options.mode) |mode| switch (mode) {
         .decode => |file_path| try runDecode(init, stdio, file_path),
+        .test_cpu => try runTestCPU(init, stdio),
     } else try noModeSelected(stdio.stderr());
 }
 

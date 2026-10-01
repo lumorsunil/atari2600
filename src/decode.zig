@@ -8,9 +8,9 @@ pub fn runDecode(init: std.process.Init, stdio: *Stdio, file_path: []const u8) !
     const stderr = stdio.stderr();
 
     const source = try std.Io.Dir.cwd().readFileAlloc(init.io, file_path, allocator, .unlimited);
-    var org = atari2600.MOS6502.Addr.zero;
-    org.lo = source[0];
-    org.hi = source[1];
+    var org = atari2600.ifc.Word.zero;
+    org.lo = .fromInt(source[0]);
+    org.hi = .fromInt(source[1]);
 
     try stdout.writeAll("    processor 6502\n");
     try stdout.print("    org ${f}\n", .{org});
