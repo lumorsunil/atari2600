@@ -1,13 +1,6 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
-const Io = std.Io;
 const Stdio = @import("stdio.zig").Stdio;
-const OptionsError = @import("options.zig").OptionsError;
-const parseOptions = @import("options.zig").parseOptions;
-const printUsage = @import("options.zig").printUsage;
-const runDecode = @import("decode.zig").runDecode;
-
-const atari2600 = @import("atari2600");
+const run = @import("run.zig").run;
 
 pub fn main(init: std.process.Init) !void {
     var stdio = Stdio.init();
@@ -23,19 +16,4 @@ pub fn main(init: std.process.Init) !void {
     } else {
         std.process.exit(exit_code);
     }
-}
-
-fn run(init: std.process.Init, stdio: *Stdio) !u8 {
-    const allocator = init.arena.allocator();
-    const options = try parseOptions(allocator, stdio, init.minimal.args);
-
-    return if (options.mode) |mode| switch (mode) {
-        .decode => |file_path| try runDecode(init, stdio, file_path),
-    } else try noModeSelected(stdio.stderr());
-}
-
-fn noModeSelected(stderr: *std.Io.Writer) !u8 {
-    try printUsage(stderr);
-    try stderr.print("No mode selected.", .{});
-    return 1;
 }
